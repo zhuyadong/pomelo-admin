@@ -1,256 +1,284 @@
-const logger = require('pomelo-logger').getLogger('pomelo-admin', 'ConsoleService');
-var MonitorAgent = require('./monitor/monitorAgent');
-var EventEmitter = require('events').EventEmitter;
-var MasterAgent = require('./master/masterAgent');
-var schedule = require('pomelo-scheduler');
-var protocol = require('./util/protocol');
-var utils = require('./util/utils');
-var util = require('util');
+const logger = require("pomelo-logger").getLogger(
+	"pomelo-admin",
+	"ConsoleService"
+);
+const schedule = require("pomelo-scheduler");
+import protocol = require("./util/protocol");
+import utils = require("./util/utils");
+import util = require("util");
+import { EventEmitter } from "events";
+import { MonitorAgent } from "./monitor/monitorAgent";
+import { MasterAgent } from "./master/masterAgent";
+import { ModuleRecord } from "../index";
 
-var MS_OF_SECOND = 1000;
+const MS_OF_SECOND = 1000;
 
-/**
- * ConsoleService Constructor
- *
- * @class ConsoleService
- * @constructor
- * @param {Object} opts construct parameter
- *                 opts.type 	{String} server type, 'master', 'connector', etc.
- *                 opts.id 		{String} server id
- *                 opts.host 	{String} (monitor only) master server host
- *                 opts.port 	{String | Number} listen port for master or master port for monitor
- *                 opts.master  {Boolean} current service is master or monitor
- *                 opts.info 	{Object} more server info for current server, {id, serverType, host, port}
- * @api public
- */
-var ConsoleService = function(opts) {
-	EventEmitter.call(this);
-	this.port = opts.port;
-	this.env = opts.env;
-	this.values = {};
-	this.master = opts.master;
-
-	this.modules = {};
-	this.commands = {
-		'list': listCommand,
-		'enable': enableCommand,
-		'disable': disableCommand
+export class ConsoleService extends EventEmitter {
+	private port: number;
+	private env: string;
+	private values: { [idx: string]: any };
+	readonly master: boolean;
+	readonly modules: { [idx: string]: ModuleRecord };
+	private commands = {
+		list: listCommand,
+		enable: enableCommand,
+		disable: disableCommand
 	};
+	private authServer: (msg: any, env: string, cb: Function) => void;
+	private authUser? = utils.defaultAuthUser;
+	readonly agent: MasterAgent & MonitorAgent;
 
-	if (this.master) {
-		this.authUser = opts.authUser || utils.defaultAuthUser;
-		this.authServer = opts.authServer || utils.defaultAuthServerMaster;
-		this.agent = new MasterAgent(this, opts);
-	} else {
-		this.type = opts.type;
-		this.id = opts.id;
-		this.host = opts.host;
-		this.authServer = opts.authServer || utils.defaultAuthServerMonitor;
-		this.agent = new MonitorAgent({
-			consoleService: this,
-			id: this.id,
-			type: this.type,
-			info: opts.info
-		});
-	}
-};
+	private type?: string;
+	private id?: string;
+	private host?: string;
+	/**
+	 * ConsoleService Constructor
+	 *
+	 * @class ConsoleService
+	 * @constructor
+	 * @param {Object} opts construct parameter
+	 *                 opts.type 	{String} server type, 'master', 'connector', etc.
+	 *                 opts.id 		{String} server id
+	 *                 opts.host 	{String} (monitor only) master server host
+	 *                 opts.port 	{String | Number} listen port for master or master port for monitor
+	 *                 opts.master  {Boolean} current service is master or monitor
+	 *                 opts.info 	{Object} more server info for current server, {id, serverType, host, port}
+	 * @api public
+	 */
+	constructor(opts: any) {
+		super();
+		this.port = opts.port;
+		this.env = opts.env;
+		this.values = {};
+		this.master = opts.master;
 
-util.inherits(ConsoleService, EventEmitter);
+		this.modules = {};
 
-/**
- * start master or monitor
- *
- * @param {Function} cb callback function
- * @api public
- */
-ConsoleService.prototype.start = function(cb) {
-	if (this.master) {
-		var self = this;
-		this.agent.listen(this.port, function(err) {
-			if (!!err) {
-				utils.invokeCallback(cb, err);
-				return;
-			}
-
-			exportEvent(self, self.agent, 'register');
-			exportEvent(self, self.agent, 'disconnect');
-			exportEvent(self, self.agent, 'reconnect');
-			process.nextTick(function() {
-				utils.invokeCallback(cb);
+		if (this.master) {
+			this.authUser = opts.authUser || utils.defaultAuthUser;
+			this.authServer = opts.authServer || utils.defaultAuthServerMaster;
+			this.agent = <any>new MasterAgent(this, opts);
+		} else {
+			this.type = opts.type;
+			this.id = opts.id;
+			this.host = opts.host;
+			this.authServer = opts.authServer || utils.defaultAuthServerMonitor;
+			this.agent = <any>new MonitorAgent({
+				consoleService: this,
+				id: this.id,
+				type: this.type,
+				info: opts.info
 			});
-		});
-	} else {
-		logger.info('try to connect master: %j, %j, %j', this.type, this.host, this.port);
-		this.agent.connect(this.port, this.host, cb);
-		exportEvent(this, this.agent, 'close');
-	}
-
-	exportEvent(this, this.agent, 'error');
-
-	for (var mid in this.modules) {
-		this.enable(mid);
-	}
-};
-
-/**
- * stop console modules and stop master server
- *
- * @api public
- */
-ConsoleService.prototype.stop = function() {
-	for (var mid in this.modules) {
-		this.disable(mid);
-	}
-	this.agent.close();
-};
-
-/**
- * register a new adminConsole module
- *
- * @param {String} moduleId adminConsole id/name
- * @param {Object} module module object
- * @api public
- */
-ConsoleService.prototype.register = function(moduleId, module) {
-	this.modules[moduleId] = registerRecord(this, moduleId, module);
-};
-
-/**
- * enable adminConsole module
- *
- * @param {String} moduleId adminConsole id/name
- * @api public
- */
-ConsoleService.prototype.enable = function(moduleId) {
-	var record = this.modules[moduleId];
-	if (record && !record.enable) {
-		record.enable = true;
-		addToSchedule(this, record);
-		return true;
-	}
-	return false;
-};
-
-/**
- * disable adminConsole module
- *
- * @param {String} moduleId adminConsole id/name
- * @api public
- */
-ConsoleService.prototype.disable = function(moduleId) {
-	var record = this.modules[moduleId];
-	if (record && record.enable) {
-		record.enable = false;
-		if (record.schedule && record.jobId) {
-			schedule.cancelJob(record.jobId);
-			schedule.jobId = null;
 		}
-		return true;
-	}
-	return false;
-};
-
-/**
- * call concrete module and handler(monitorHandler,masterHandler,clientHandler)
- *
- * @param {String} moduleId adminConsole id/name
- * @param {String} method handler
- * @param {Object} msg message
- * @param {Function} cb callback function
- * @api public
- */
-ConsoleService.prototype.execute = function(moduleId, method, msg, cb) {
-	var self = this;
-	var m = this.modules[moduleId];
-	if (!m) {
-		logger.error('unknown module: %j.', moduleId);
-		cb('unknown moduleId:' + moduleId);
-		return;
 	}
 
-	if (!m.enable) {
-		logger.error('module %j is disable.', moduleId);
-		cb('module ' + moduleId + ' is disable');
-		return;
+	/**
+	 * start master or monitor
+	 *
+	 * @param {Function} cb callback function
+	 * @api public
+	 */
+	start(cb: Function) {
+		if (this.master) {
+			this.agent.listen(this.port, (err: any) => {
+				if (!!err) {
+					utils.invokeCallback(cb, err);
+					return;
+				}
+
+				exportEvent(this, this.agent, "register");
+				exportEvent(this, this.agent, "disconnect");
+				exportEvent(this, this.agent, "reconnect");
+				process.nextTick(function() {
+					utils.invokeCallback(cb);
+				});
+			});
+		} else {
+			logger.info(
+				"try to connect master: %j, %j, %j",
+				this.type,
+				this.host,
+				this.port
+			);
+			this.agent.connect(this.port, this.host!, cb);
+			exportEvent(this, this.agent, "close");
+		}
+
+		exportEvent(this, this.agent, "error");
+
+		for (let mid in this.modules) {
+			this.enable(mid);
+		}
 	}
 
-	var module = m.module;
-	if (!module || typeof module[method] !== 'function') {
-		logger.error('module %j dose not have a method called %j.', moduleId, method);
-		cb('module ' + moduleId + ' dose not have a method called ' + method);
-		return;
+	/**
+	 * stop console modules and stop master server
+	 *
+	 * @api public
+	 */
+	stop() {
+		for (let mid in this.modules) {
+			this.disable(mid);
+		}
+		this.agent.close();
 	}
 
-	var log = {
-		action: 'execute',
-		moduleId: moduleId,
-		method: method,
-		msg: msg
+	/**
+	 * register a new adminConsole module
+	 *
+	 * @param {String} moduleId adminConsole id/name
+	 * @param {Object} module module object
+	 * @api public
+	 */
+	register(moduleId: string, module: any) {
+		this.modules[moduleId] = registerRecord(this, moduleId, module);
 	}
 
-	var aclMsg = aclControl(self.agent, 'execute', method, moduleId, msg);
-	if (aclMsg !== 0 && aclMsg !== 1) {
-		log['error'] = aclMsg;
-		self.emit('admin-log', log, aclMsg);
-		cb(new Error(aclMsg), null);
-		return;
+	/**
+	 * enable adminConsole module
+	 *
+	 * @param {String} moduleId adminConsole id/name
+	 * @api public
+	 */
+	enable(moduleId: string) {
+		let record = this.modules[moduleId];
+		if (record && !record.enable) {
+			record.enable = true;
+			addToSchedule(this, record);
+			return true;
+		}
+		return false;
 	}
 
-	if (method === 'clientHandler') {
-		self.emit('admin-log', log);
+	/**
+	 * disable adminConsole module
+	 *
+	 * @param {String} moduleId adminConsole id/name
+	 * @api public
+	 */
+	disable(moduleId: string) {
+		let record = this.modules[moduleId];
+		if (record && record.enable) {
+			record.enable = false;
+			if (record.schedule && record.jobId) {
+				schedule.cancelJob(record.jobId);
+				schedule.jobId = null;
+			}
+			return true;
+		}
+		return false;
 	}
 
-	module[method](this.agent, msg, cb);
-};
+	/**
+	 * call concrete module and handler(monitorHandler,masterHandler,clientHandler)
+	 *
+	 * @param {String} moduleId adminConsole id/name
+	 * @param {String} method handler
+	 * @param {Object} msg message
+	 * @param {Function} cb callback function
+	 * @api public
+	 */
+	execute(moduleId: string, method: string, msg: any, cb: Function) {
+		let m = this.modules[moduleId];
+		if (!m) {
+			logger.error("unknown module: %j.", moduleId);
+			cb("unknown moduleId:" + moduleId);
+			return;
+		}
 
-ConsoleService.prototype.command = function(command, moduleId, msg, cb) {
-	var self = this;
-	var fun = this.commands[command];
-	if (!fun || typeof fun !== 'function') {
-		cb('unknown command:' + command);
-		return;
+		if (!m.enable) {
+			logger.error("module %j is disable.", moduleId);
+			cb("module " + moduleId + " is disable");
+			return;
+		}
+
+		let module = m.module;
+		if (!module || typeof module[method] !== "function") {
+			logger.error(
+				"module %j dose not have a method called %j.",
+				moduleId,
+				method
+			);
+			cb(
+				"module " +
+					moduleId +
+					" dose not have a method called " +
+					method
+			);
+			return;
+		}
+
+		let log = {
+			action: "execute",
+			moduleId: moduleId,
+			method: method,
+			msg: msg,
+			error: null as any
+		};
+
+		let aclMsg = aclControl(this.agent, "execute", method, moduleId, msg);
+		if (aclMsg !== 0 && aclMsg !== 1) {
+			log["error"] = aclMsg;
+			this.emit("admin-log", log, aclMsg);
+			cb(new Error(aclMsg as string), null);
+			return;
+		}
+
+		if (method === "clientHandler") {
+			this.emit("admin-log", log);
+		}
+
+		module[method](this.agent, msg, cb);
 	}
 
-	var log = {
-		action: 'command',
-		moduleId: moduleId,
-		msg: msg
+	command(command: string, moduleId: string, msg: any, cb: Function) {
+		let fun: Function = (<any>this.commands)[command];
+		if (!fun || typeof fun !== "function") {
+			cb("unknown command:" + command);
+			return;
+		}
+
+		let log = {
+			action: "command",
+			moduleId: moduleId,
+			msg: msg,
+			error: null as any
+		};
+
+		let aclMsg = aclControl(this.agent, "command", null!, moduleId, msg);
+		if (aclMsg !== 0 && aclMsg !== 1) {
+			log["error"] = aclMsg;
+			this.emit("admin-log", log, aclMsg);
+			cb(new Error(aclMsg as string), null);
+			return;
+		}
+
+		this.emit("admin-log", log);
+		fun(this, moduleId, msg, cb);
 	}
 
-	var aclMsg = aclControl(self.agent, 'command', null, moduleId, msg);
-	if (aclMsg !== 0 && aclMsg !== 1) {
-		log['error'] = aclMsg;
-		self.emit('admin-log', log, aclMsg);
-		cb(new Error(aclMsg), null);
-		return;
+	/**
+	 * set module data to a map
+	 *
+	 * @param {String} moduleId adminConsole id/name
+	 * @param {Object} value module data
+	 * @api public
+	 */
+
+	set(moduleId: string, value: any) {
+		this.values[moduleId] = value;
 	}
 
-	self.emit('admin-log', log);
-	fun(this, moduleId, msg, cb);
+	/**
+	 * get module data from map
+	 *
+	 * @param {String} moduleId adminConsole id/name
+	 * @api public
+	 */
+	get(moduleId: string) {
+		return this.values[moduleId];
+	}
 }
-
-/**
- * set module data to a map
- *
- * @param {String} moduleId adminConsole id/name
- * @param {Object} value module data
- * @api public
- */
-
-ConsoleService.prototype.set = function(moduleId, value) {
-	this.values[moduleId] = value;
-};
-
-/**
- * get module data from map
- *
- * @param {String} moduleId adminConsole id/name
- * @api public
- */
-ConsoleService.prototype.get = function(moduleId) {
-	return this.values[moduleId];
-};
-
 /**
  * register a module service
  *
@@ -259,34 +287,41 @@ ConsoleService.prototype.get = function(moduleId) {
  * @param {Object} module module object
  * @api private
  */
-var registerRecord = function(service, moduleId, module) {
-	var record = {
+function registerRecord(
+	service: ConsoleService,
+	moduleId: string,
+	module: any
+) {
+	let record: ModuleRecord = {
 		moduleId: moduleId,
 		module: module,
 		enable: false
 	};
 
 	if (module.type && module.interval) {
-		if (!service.master && record.module.type === 'push' || service.master && record.module.type !== 'push') {
+		if (
+			(!service.master && record.module.type === "push") ||
+			(service.master && record.module.type !== "push")
+		) {
 			// push for monitor or pull for master(default)
 			record.delay = module.delay || 0;
 			record.interval = module.interval || 1;
 			// normalize the arguments
-			if (record.delay < 0) {
+			if (record.delay! < 0) {
 				record.delay = 0;
 			}
-			if (record.interval < 0) {
+			if (record.interval! < 0) {
 				record.interval = 1;
 			}
-			record.interval = Math.ceil(record.interval);
-			record.delay *= MS_OF_SECOND;
+			record.interval = Math.ceil(record.interval!);
+			record.delay! *= MS_OF_SECOND;
 			record.interval *= MS_OF_SECOND;
 			record.schedule = true;
 		}
 	}
 
 	return record;
-};
+}
 
 /**
  * schedule console module
@@ -295,18 +330,21 @@ var registerRecord = function(service, moduleId, module) {
  * @param {Object} record  module object
  * @api private
  */
-var addToSchedule = function(service, record) {
+function addToSchedule(service: ConsoleService, record: ModuleRecord) {
 	if (record && record.schedule) {
-		record.jobId = schedule.scheduleJob({
-				start: Date.now() + record.delay,
+		record.jobId = schedule.scheduleJob(
+			{
+				start: Date.now() + record.delay!,
 				period: record.interval
 			},
-			doScheduleJob, {
+			doScheduleJob,
+			{
 				service: service,
 				record: record
-			});
+			}
+		);
 	}
-};
+}
 
 /**
  * run schedule job
@@ -314,23 +352,23 @@ var addToSchedule = function(service, record) {
  * @param {Object} args argments
  * @api private
  */
-var doScheduleJob = function(args) {
-	var service = args.service;
-	var record = args.record;
+function doScheduleJob(args: any) {
+	let service = args.service;
+	let record = args.record;
 	if (!service || !record || !record.module || !record.enable) {
 		return;
 	}
 
 	if (service.master) {
-		record.module.masterHandler(service.agent, null, function(err) {
-			logger.error('interval push should not have a callback.');
+		record.module.masterHandler(service.agent, null, (err: any) => {
+			logger.error("interval push should not have a callback.");
 		});
 	} else {
-		record.module.monitorHandler(service.agent, null, function(err) {
-			logger.error('interval push should not have a callback.');
+		record.module.monitorHandler(service.agent, null, (err: any) => {
+			logger.error("interval push should not have a callback.");
 		});
 	}
-};
+}
 
 /**
  * export closure function out
@@ -340,22 +378,31 @@ var doScheduleJob = function(args) {
  * @param {object} event
  * @api private
  */
-var exportEvent = function(outer, inner, event) {
+function exportEvent(
+	outer: ConsoleService,
+	inner: MasterAgent & MonitorAgent,
+	event: string
+) {
 	inner.on(event, function() {
-		var args = Array.prototype.slice.call(arguments, 0);
+		let args = Array.prototype.slice.call(arguments, 0);
 		args.unshift(event);
 		outer.emit.apply(outer, args);
 	});
-};
+}
 
 /**
  * List current modules
  */
-var listCommand = function(consoleService, moduleId, msg, cb) {
-	var modules = consoleService.modules;
+function listCommand(
+	consoleService: ConsoleService,
+	moduleId: string,
+	msg: any,
+	cb: Function
+) {
+	let modules = consoleService.modules;
 
-	var result = [];
-	for (var moduleId in modules) {
+	let result = [];
+	for (let moduleId in modules) {
 		if (/^__\w+__$/.test(moduleId)) {
 			continue;
 		}
@@ -366,19 +413,24 @@ var listCommand = function(consoleService, moduleId, msg, cb) {
 	cb(null, {
 		modules: result
 	});
-};
+}
 
 /**
  * enable module in current server
  */
-var enableCommand = function(consoleService, moduleId, msg, cb) {
+function enableCommand(
+	consoleService: ConsoleService,
+	moduleId: string,
+	msg: any,
+	cb: Function
+) {
 	if (!moduleId) {
-		logger.error('fail to enable admin module for ' + moduleId);
-		cb('empty moduleId');
+		logger.error("fail to enable admin module for " + moduleId);
+		cb("empty moduleId");
 		return;
 	}
 
-	var modules = consoleService.modules;
+	let modules = consoleService.modules;
 	if (!modules[moduleId]) {
 		cb(null, protocol.PRO_FAIL);
 		return;
@@ -392,19 +444,24 @@ var enableCommand = function(consoleService, moduleId, msg, cb) {
 		consoleService.enable(moduleId);
 		cb(null, protocol.PRO_OK);
 	}
-};
+}
 
 /**
  * disable module in current server
  */
-var disableCommand = function(consoleService, moduleId, msg, cb) {
+function disableCommand(
+	consoleService: ConsoleService,
+	moduleId: string,
+	msg: any,
+	cb: Function
+) {
 	if (!moduleId) {
-		logger.error('fail to enable admin module for ' + moduleId);
-		cb('empty moduleId');
+		logger.error("fail to enable admin module for " + moduleId);
+		cb("empty moduleId");
 		return;
 	}
 
-	var modules = consoleService.modules;
+	let modules = consoleService.modules;
 	if (!modules[moduleId]) {
 		cb(null, protocol.PRO_FAIL);
 		return;
@@ -418,33 +475,42 @@ var disableCommand = function(consoleService, moduleId, msg, cb) {
 		consoleService.disable(moduleId);
 		cb(null, protocol.PRO_OK);
 	}
-};
+}
 
-var aclControl = function(agent, action, method, moduleId, msg) {
-	if (action === 'execute') {
-		if (method !== 'clientHandler' || moduleId !== '__console__') {
+function aclControl(
+	agent: MasterAgent & MonitorAgent,
+	action: string,
+	method: string,
+	moduleId: string,
+	msg: any
+) {
+	if (action === "execute") {
+		if (method !== "clientHandler" || moduleId !== "__console__") {
 			return 0;
 		}
 
-		var signal = msg.signal;
-		if (!signal || !(signal === 'stop' || signal === 'add' || signal === 'kill')) {
+		let signal = msg.signal;
+		if (
+			!signal ||
+			!(signal === "stop" || signal === "add" || signal === "kill")
+		) {
 			return 0;
 		}
 	}
 
-	var clientId = msg.clientId;
+	let clientId = msg.clientId;
 	if (!clientId) {
-		return 'Unknow clientId';
+		return "Unknow clientId";
 	}
 
-	var _client = agent.getClientById(clientId);
+	let _client = agent.getClientById(clientId);
 	if (_client && _client.info && _client.info.level) {
-		var level = _client.info.level;
+		let level = _client.info.level;
 		if (level > 1) {
-			return 'Command permission denied';
+			return "Command permission denied";
 		}
 	} else {
-		return 'Client info error';
+		return "Client info error";
 	}
 	return 1;
 }
@@ -455,11 +521,11 @@ var aclControl = function(agent, action, method, moduleId, msg) {
  * @param {Object} opts construct parameter
  *                      opts.port {String | Number} listen port for master console
  */
-module.exports.createMasterConsole = function(opts) {
+export function createMasterConsole(opts: any) {
 	opts = opts || {};
 	opts.master = true;
 	return new ConsoleService(opts);
-};
+}
 
 /**
  * Create monitor ConsoleService
@@ -470,6 +536,6 @@ module.exports.createMasterConsole = function(opts) {
  *                      opts.host {String} master server host
  *                      opts.port {String | Number} master port
  */
-module.exports.createMonitorConsole = function(opts) {
+export function createMonitorConsole(opts: any) {
 	return new ConsoleService(opts);
-};
+}

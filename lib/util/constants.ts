@@ -5,6 +5,6 @@ export = {
 		RECONNECT_DELAY: 1 * 1000,
 		RECONNECT_DELAY_MAX: 60 * 1000
 	},
-	TYPE_CLIENT: 'client',
-	TYPE_MONITOR: 'monitor'
+	TYPE_CLIENT: "client",
+	TYPE_MONITOR: "monitor"
 };

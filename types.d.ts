@@ -28,13 +28,3 @@ declare module "mqtt-connection" {
 
   export = Connection;
 }
-
-declare interface MqttPacket {
-  cmd:string;
-  retain:boolean;
-  qos:number;
-  dup:boolean;
-  length:number;
-  topic:string;
-  payload:any;
-}
