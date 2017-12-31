@@ -1,17 +1,16 @@
-var MasterConsole = require('../lib/consoleService');
-var TestModule = require('./module');
-var port = 3300;
-var host = 'localhost';
-
-var opts = {
-	port: port,
-	master: true
-}
-
-var masterConsole = MasterConsole.createMasterConsole(opts);
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const consoleService_1 = require("../lib/consoleService");
+const TestModule = require('./module');
+const port = 3300;
+const host = 'localhost';
+const opts = {
+    port: port,
+    master: true
+};
+var masterConsole = consoleService_1.createMasterConsole(opts);
 var module = TestModule();
 masterConsole.register(TestModule.moduleId, module);
-
-masterConsole.start(function() {
-
-})
+masterConsole.start(function () {
+});
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoic2VydmVyLmpzIiwic291cmNlUm9vdCI6IiIsInNvdXJjZXMiOlsic2VydmVyLnRzIl0sIm5hbWVzIjpbXSwibWFwcGluZ3MiOiI7O0FBQUEsMERBQTREO0FBRTVELE1BQU0sVUFBVSxHQUFHLE9BQU8sQ0FBQyxVQUFVLENBQUMsQ0FBQztBQUN2QyxNQUFNLElBQUksR0FBRyxJQUFJLENBQUM7QUFDbEIsTUFBTSxJQUFJLEdBQUcsV0FBVyxDQUFDO0FBRXpCLE1BQU0sSUFBSSxHQUFHO0lBQ1osSUFBSSxFQUFFLElBQUk7SUFDVixNQUFNLEVBQUUsSUFBSTtDQUNaLENBQUE7QUFFRCxJQUFJLGFBQWEsR0FBRyxvQ0FBbUIsQ0FBQyxJQUFJLENBQUMsQ0FBQztBQUM5QyxJQUFJLE1BQU0sR0FBRyxVQUFVLEVBQUUsQ0FBQztBQUMxQixhQUFhLENBQUMsUUFBUSxDQUFDLFVBQVUsQ0FBQyxRQUFRLEVBQUUsTUFBTSxDQUFDLENBQUM7QUFFcEQsYUFBYSxDQUFDLEtBQUssQ0FBQztBQUVwQixDQUFDLENBQUMsQ0FBQSIsInNvdXJjZXNDb250ZW50IjpbImltcG9ydCB7IGNyZWF0ZU1hc3RlckNvbnNvbGUgfSBmcm9tIFwiLi4vbGliL2NvbnNvbGVTZXJ2aWNlXCI7XG5cbmNvbnN0IFRlc3RNb2R1bGUgPSByZXF1aXJlKCcuL21vZHVsZScpO1xuY29uc3QgcG9ydCA9IDMzMDA7XG5jb25zdCBob3N0ID0gJ2xvY2FsaG9zdCc7XG5cbmNvbnN0IG9wdHMgPSB7XG5cdHBvcnQ6IHBvcnQsXG5cdG1hc3RlcjogdHJ1ZVxufVxuXG52YXIgbWFzdGVyQ29uc29sZSA9IGNyZWF0ZU1hc3RlckNvbnNvbGUob3B0cyk7XG52YXIgbW9kdWxlID0gVGVzdE1vZHVsZSgpO1xubWFzdGVyQ29uc29sZS5yZWdpc3RlcihUZXN0TW9kdWxlLm1vZHVsZUlkLCBtb2R1bGUpO1xuXG5tYXN0ZXJDb25zb2xlLnN0YXJ0KGZ1bmN0aW9uKCkge1xuXG59KVxuIl19

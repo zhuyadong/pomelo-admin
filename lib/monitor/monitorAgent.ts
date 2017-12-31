@@ -25,10 +25,10 @@ export interface MonitorAgentOpts {
 
 export class MonitorAgent extends EventEmitter {
 	private reqId: number;
-	readonly id: string;
+	readonly id?: string;
 	private socket: MqttClient;
 	private callbacks: { [idx: string]: Function };
-	readonly type: string;
+	readonly type?: string;
 	readonly info: ServerInfo;
 	private state: number;
 	readonly consoleService: any;
