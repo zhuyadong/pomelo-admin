@@ -13,20 +13,16 @@ import { MasterSocket } from "./masterSocket";
 import { ServerInfo, SlaveRecord } from "../../index";
 import { MonitorAgent } from "../monitor/monitorAgent";
 import { MqttClient } from "../protocol/mqtt/mqttClient";
+import { ConsoleService } from '../consoleService';
 
 let ST_INITED = 1;
 let ST_STARTED = 2;
 let ST_CLOSED = 3;
 
 export interface MasterAgentOpts {
-	consoleService: any;
 	id: string;
 	type: string;
-	socket: MqttCon;
-	reqId: number;
-	callbacks: any;
-	state: number;
-	whitelist: any;
+	whitelist?:any;
 }
 
 export class MasterAgent extends EventEmitter {

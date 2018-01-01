@@ -17,10 +17,10 @@ const ST_CLOSED = 4;
 const STATUS_INTERVAL = 5 * 1000; // 60 seconds
 
 export interface MonitorAgentOpts {
-	id?: string;
-	type?: string;
+	id: string;
+	type: string;
 	info: ServerInfo;
-	consoleService: ConsoleService; //TODO
+	consoleService: ConsoleService;
 }
 
 export class MonitorAgent extends EventEmitter {

@@ -1,5 +1,6 @@
-import MqttCon = require("mqtt-connection");
-import fs = require("fs");
+import { S_IFBLK } from 'constants';
+import MqttCon = require('mqtt-connection');
+import fs = require('fs');
 import { MonitorAgent } from "./lib/monitor/monitorAgent";
 import { MasterAgent } from "./lib/master/masterAgent";
 var consoleService = require("./lib/consoleService");

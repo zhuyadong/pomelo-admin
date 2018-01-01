@@ -7,17 +7,29 @@ import protocol = require("./util/protocol");
 import utils = require("./util/utils");
 import util = require("util");
 import { EventEmitter } from "events";
-import { MonitorAgent } from "./monitor/monitorAgent";
-import { MasterAgent } from "./master/masterAgent";
-import { ModuleRecord } from "../index";
+import { MonitorAgent, MonitorAgentOpts } from './monitor/monitorAgent';
+import { MasterAgent, MasterAgentOpts } from "./master/masterAgent";
+import { ModuleRecord, ServerInfo } from '../index';
 
 const MS_OF_SECOND = 1000;
 
+export interface ConsoleServiceOpts {
+	id?:string;
+	type?:string;
+	env?:string;
+    master?:boolean;
+    host?:string;
+    port:number;
+	info?:ServerInfo;
+	authServer?:(msg: any, env: string, cb: Function)=>void;
+	authUser?:(msg: any, env: string, cb: Function)=>void;
+}
+
 export class ConsoleService extends EventEmitter {
 	private port: number;
-	private env: string;
+	private env?: string;
 	private values: { [idx: string]: any };
-	readonly master: boolean;
+	readonly master?: boolean;
 	readonly modules: { [idx: string]: ModuleRecord };
 	private commands = {
 		list: listCommand,
@@ -45,7 +57,7 @@ export class ConsoleService extends EventEmitter {
 	 *                 opts.info 	{Object} more server info for current server, {id, serverType, host, port}
 	 * @api public
 	 */
-	constructor(opts: any) {
+	constructor(opts: ConsoleServiceOpts) {
 		super();
 		this.port = opts.port;
 		this.env = opts.env;
@@ -57,7 +69,7 @@ export class ConsoleService extends EventEmitter {
 		if (this.master) {
 			this.authUser = opts.authUser || utils.defaultAuthUser;
 			this.authServer = opts.authServer || utils.defaultAuthServerMaster;
-			this.agent = <any>new MasterAgent(this, opts);
+			this.agent = <any>new MasterAgent(this, opts as MasterAgentOpts);
 		} else {
 			this.type = opts.type;
 			this.id = opts.id;
@@ -65,9 +77,9 @@ export class ConsoleService extends EventEmitter {
 			this.authServer = opts.authServer || utils.defaultAuthServerMonitor;
 			this.agent = <any>new MonitorAgent({
 				consoleService: this,
-				id: this.id,
-				type: this.type,
-				info: opts.info
+				id: this.id as string,
+				type: this.type as string,
+				info: opts.info as ServerInfo,
 			});
 		}
 	}
