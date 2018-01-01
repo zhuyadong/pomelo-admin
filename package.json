@@ -9,6 +9,8 @@
         "pomelo-scheduler": "0.3.8"
     },
     "peerDependencies": {
+        "@types/duplexify": "^3.5.0",
+        "@types/node": "^8.5.2",
         "pomelo-logger": "0.1.7"
     },
     "devDependencies": {
