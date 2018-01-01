@@ -64,6 +64,7 @@ export interface Module {
 	monitorHandler: (agent: MonitorAgent, msg: any, cb: Function) => void;
 	clientHandler: (agent: MasterAgent, msg: any, cb: Function) => void;
 	masterHandler?: (agent: MasterAgent, msg: any, cb: Function) => void;
+	start?:(cb?:Function)=>void;
 }
 
 export const createMasterConsole = consoleService.createMasterConsole;
