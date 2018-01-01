@@ -60,6 +60,7 @@ export interface ModuleRecord {
 }
 
 export interface Module {
+	moduleId:string;
 	monitorHandler: (agent: MonitorAgent, msg: any, cb: Function) => void;
 	clientHandler: (agent: MasterAgent, msg: any, cb: Function) => void;
 	masterHandler?: (agent: MasterAgent, msg: any, cb: Function) => void;
