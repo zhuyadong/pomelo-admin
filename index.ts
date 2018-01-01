@@ -1,3 +1,4 @@
+/// <reference path="./types.d.ts" />
 import { S_IFBLK } from "constants";
 import MqttCon = require("mqtt-connection");
 import fs = require("fs");
