@@ -1,10 +1,24 @@
-import { S_IFBLK } from 'constants';
-import MqttCon = require('mqtt-connection');
-import fs = require('fs');
+import { S_IFBLK } from "constants";
+import MqttCon = require("mqtt-connection");
+import fs = require("fs");
 import { MonitorAgent } from "./lib/monitor/monitorAgent";
 import { MasterAgent } from "./lib/master/masterAgent";
-import { AdminClient } from './lib/client/client';
+import { AdminClient } from "./lib/client/client";
+import { ConsoleService } from "./lib/consoleService";
+import { MasterSocket } from "./lib/master/masterSocket";
 import consoleService = require("./lib/consoleService");
+import { MqttClient } from "./lib/protocol/mqtt/mqttClient";
+import { MqttServer } from "./lib/protocol/mqtt/mqttServer";
+
+export {
+	MonitorAgent,
+	MasterAgent,
+	AdminClient,
+	ConsoleService,
+	MasterSocket,
+	MqttClient,
+	MqttServer
+};
 
 export interface ServerInfo {
 	id: string;
