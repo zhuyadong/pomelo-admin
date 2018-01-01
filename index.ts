@@ -3,7 +3,8 @@ import MqttCon = require('mqtt-connection');
 import fs = require('fs');
 import { MonitorAgent } from "./lib/monitor/monitorAgent";
 import { MasterAgent } from "./lib/master/masterAgent";
-var consoleService = require("./lib/consoleService");
+import { AdminClient } from './lib/client/client';
+import consoleService = require("./lib/consoleService");
 
 export interface ServerInfo {
 	id: string;
@@ -52,7 +53,7 @@ export interface Module {
 
 export const createMasterConsole = consoleService.createMasterConsole;
 export const createMonitorConsole = consoleService.createMonitorConsole;
-export const adminClient = require("./lib/client/client");
+export const adminClient = AdminClient;
 
 export interface Modules {
 	monitorLog: Module;
